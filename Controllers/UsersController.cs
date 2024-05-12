@@ -1,10 +1,12 @@
 using System.Diagnostics.Eventing.Reader;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NummyNotesApi.Models;
 using NummyNotesApi.Services;
 
 namespace NummyNotesApi.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class UsersController : ControllerBase
@@ -71,5 +73,20 @@ public class UsersController : ControllerBase
         await _usersService.RemoveAsync(id);
 
         return NoContent();
+    }
+
+    [AllowAnonymous]
+    [Route("authenticate")]
+    [HttpPost]
+    public async Task<IActionResult> Login(User user)
+    {
+        var token = await _usersService.Authenticate(user.Email, user.Password);
+
+        if (token is null)
+        {
+            return Unauthorized();
+        }
+
+        return Ok(new { token, user });
     }
 }
