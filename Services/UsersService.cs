@@ -28,6 +28,7 @@ public class UsersService
         var mongoDatabase = mongoClient.GetDatabase(nummyNotesDatabaseSettings.Value.DatabaseName);
 
         _usersCollection = mongoDatabase.GetCollection<User>(nummyNotesDatabaseSettings.Value.UsersCollectionName);
+        CreateUniqueEmailIndex(); 
         _passwordHasher = new PasswordHasher<User>();
 
         _jwtKey = Environment.GetEnvironmentVariable("JWT_KEY")!;
@@ -37,9 +38,16 @@ public class UsersService
         _jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE")!;
     }
 
+    private void CreateUniqueEmailIndex()
+    {
+        var indexOptions = new CreateIndexOptions { Unique = true };
+        var indexKeys = Builders<User>.IndexKeys.Ascending(user => user.Email);
+        var indexModel = new CreateIndexModel<User>(indexKeys, indexOptions);
+        _usersCollection.Indexes.CreateOne(indexModel);
+    }
+
     public async Task<string> Authenticate(string email, string password)
     {
-        DotNetEnv.Env.Load();
         var user = await _usersCollection.Find(x => x.Email == email).FirstOrDefaultAsync();
 
         if (user is null)
@@ -83,8 +91,18 @@ public class UsersService
 
     public async Task CreateAsync(User newUser)
     {
+        if (await EmailExists(newUser.Email))
+        {
+            throw new ApplicationException("A user with he same email already exists.");
+        }
         newUser.Password = _passwordHasher.HashPassword(newUser, newUser.Password);
         await _usersCollection.InsertOneAsync(newUser);
+    }
+
+    private async Task<bool> EmailExists(string email)
+    {
+        var existingUser = await _usersCollection.Find(user => user.Email == email).FirstOrDefaultAsync();
+        return existingUser != null;
     }
 
     public async Task UpdateAsync(string id, User updatedUser) =>

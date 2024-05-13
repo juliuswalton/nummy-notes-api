@@ -1,6 +1,7 @@
 using System.Diagnostics.Eventing.Reader;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MongoDB.Driver;
 using NummyNotesApi.Models;
 using NummyNotesApi.Services;
 
@@ -36,9 +37,21 @@ public class UsersController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Post(User newUser)
     {
-        await _usersService.CreateAsync(newUser);
+        try
+        {
+            await _usersService.CreateAsync(newUser);
+            return CreatedAtAction(nameof(Get), new { id = newUser.Id }, newUser);
+        }
+        catch (MongoWriteException ex)
+        {
+            if (ex.WriteError.Category == ServerErrorCategory.DuplicateKey)
+            {
+                return BadRequest("A user with the same email already exists.");
+            }
 
-        return CreatedAtAction(nameof(Get), new { id = newUser.Id }, newUser);
+            throw;
+
+        }
     }
 
 
